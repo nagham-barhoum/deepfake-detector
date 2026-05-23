@@ -1,0 +1,301 @@
+ ..{% extends "base.html" %}
+{% block title %}DeepFake Detector — Upload{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+  <p class="hero-sub">MULTI-LAYER FORENSIC ANALYSIS</p>
+  <h1 class="hero-title">DETECT.<br/>ANALYZE.<br/>VERIFY.</h1>
+  <p class="hero-desc">
+    5-signal fusion pipeline: neural inference, error-level analysis,
+    frequency decomposition, noise fingerprinting &amp; metadata forensics.
+  </p>
+</section>
+
+<section class="upload-section">
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('image', this)">IMAGE</button>
+    <button class="tab" onclick="switchTab('video', this)">VIDEO</button>
+  </div>
+
+  <!-- Image -->
+  <div id="tab-image" class="tab-panel">
+    <label class="drop-zone" id="drop-image" for="image-input">
+      <div class="drop-inner">
+        <div class="drop-icon">⬡</div>
+        <span class="drop-title">DROP IMAGE HERE</span>
+        <span class="drop-hint">or click to browse — JPG, PNG, WEBP</span>
+        <span class="drop-filename" id="image-filename"></span>
+      </div>
+      <input id="image-input" type="file" accept="image/*"
+             onchange="previewFile(this,'image-filename','drop-image')" />
+    </label>
+    <div class="form-footer">
+      <button class="btn-analyze" onclick="runAnalysis('image')">
+        <span>RUN ANALYSIS</span><span class="btn-arrow">→</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Video -->
+  <div id="tab-video" class="tab-panel hidden">
+    <label class="drop-zone" id="drop-video" for="video-input">
+      <div class="drop-inner">
+        <div class="drop-icon">▶</div>
+        <span class="drop-title">DROP VIDEO HERE</span>
+        <span class="drop-hint">or click to browse — MP4, MOV, AVI</span>
+        <span class="drop-filename" id="video-filename"></span>
+      </div>
+      <input id="video-input" type="file" accept="video/*"
+             onchange="previewFile(this,'video-filename','drop-video')" />
+    </label>
+    <div class="form-footer">
+      <button class="btn-analyze" onclick="runAnalysis('video')">
+        <span>RUN ANALYSIS</span><span class="btn-arrow">→</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- Layer legend -->
+<section class="layer-legend">
+  <div class="legend-title">DETECTION LAYERS</div>
+  <div class="legend-items">
+    <div class="legend-item"><span class="dot dot-1"></span>ML Model</div>
+    <div class="legend-item"><span class="dot dot-2"></span>ELA</div>
+    <div class="legend-item"><span class="dot dot-3"></span>FFT</div>
+    <div class="legend-item"><span class="dot dot-4"></span>Noise</div>
+    <div class="legend-item"><span class="dot dot-5"></span>Metadata</div>
+  </div>
+</section>
+
+<!-- Spinner -->
+<div id="spinner" class="spinner-bar hidden">
+  <span class="spinner-label">SCANNING</span>
+  <div class="spinner-track"><div class="spinner-fill"></div></div>
+</div>
+
+<!-- Result injected here -->
+<section id="result-panel"></section>
+
+
+<script>
+// ── Tab switcher ──────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  btn.classList.add('active');
+}
+
+function previewFile(input, filenameId, zoneId) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById(filenameId).textContent = file.name;
+  document.getElementById(zoneId).classList.add('has-file');
+}
+
+// ── Main analysis call ────────────────────────────────────────────────────────
+async function runAnalysis(type) {
+  const input = document.getElementById(type + '-input');
+  if (!input.files.length) {
+    alert('Please select a file first.');
+    return;
+  }
+
+  const file = input.files[0];
+  const form = new FormData();
+  form.append('file', file);
+
+  // Show spinner
+  document.getElementById('spinner').classList.remove('hidden');
+  document.getElementById('result-panel').innerHTML = '';
+
+  try {
+    const endpoint = type === 'image'
+      ? '/api/v1/analyze/image'
+      : '/api/v1/analyze/video';
+
+    const resp = await fetch(endpoint, { method: 'POST', body: form });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || 'Analysis failed');
+    }
+
+    const data = await resp.json();
+    renderResult(data, file.name);
+
+  } catch (e) {
+    document.getElementById('result-panel').innerHTML =
+      `<div class="error-card">⚠ ${e.message}</div>`;
+  } finally {
+    document.getElementById('spinner').classList.add('hidden');
+  }
+}
+
+// ── Render result card ────────────────────────────────────────────────────────
+function renderResult(d, filename) {
+  // Backend returns different payloads for image vs video
+  const isVideo = (d.media_type || '').toLowerCase() === 'video';
+
+  let verdictClass = 'uncertain';
+  const v = (d.verdict || '').toLowerCase();
+  if (v.includes('real')) verdictClass = 'real';
+  if (v.includes('ai') || v.includes('deepfake')) verdictClass = 'fake';
+
+  const pct = (x) => (Number(x) * 100).toFixed(1) + '%';
+
+  const ls = d.layer_scores || {};
+
+  let layers = [];
+  let barsHtml = '';
+  let temporalHtml = '';
+
+  if (!isVideo) {
+    // Image: 5 layer breakdown
+    layers = [
+      { name: 'ML MODEL', score: ls.ml_score,       color: 'var(--c1)' },
+      { name: 'ELA',      score: ls.ela_score,      color: 'var(--c2)' },
+      { name: 'FFT',      score: ls.fft_score,      color: 'var(--c3)' },
+      { name: 'NOISE',    score: ls.noise_score,    color: 'var(--c4)' },
+      { name: 'METADATA', score: ls.metadata_score, color: 'var(--c5)' },
+    ];
+
+    barsHtml = layers.map(l => `
+      <div class="layer-row">
+        <span class="layer-name">${l.name}</span>
+        <div class="layer-bar-track">
+          <div class="layer-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
+        </div>
+        <span class="layer-pct">${pct(l.score)}</span>
+      </div>
+    `).join('');
+
+    temporalHtml = d.temporal_score != null ? `
+      <div class="layer-row layer-extra">
+        <span class="layer-name">TEMPORAL</span>
+        <div class="layer-bar-track">
+          <div class="layer-bar-fill" style="width:${pct(d.temporal_score)};background:var(--c-temporal)"></div>
+        </div>
+        <span class="layer-pct">${pct(d.temporal_score)}</span>
+      </div>` : '';
+  } else {
+    // Video: show only frame_aggregate + temporal_score
+    const frameAgg = ls.frame_aggregate;
+    const temporalScore = ls.temporal_score;
+
+    layers = [
+      { name: 'FRAME AGGREGATE', score: frameAgg, color: 'var(--c1)' },
+      { name: 'TEMPORAL',        score: temporalScore, color: 'var(--c-temporal)' },
+    ];
+
+    barsHtml = layers.map(l => `
+      <div class="layer-row">
+        <span class="layer-name">${l.name}</span>
+        <div class="layer-bar-track">
+          <div class="layer-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
+        </div>
+        <span class="layer-pct">${pct(l.score)}</span>
+      </div>
+    `).join('');
+
+    temporalHtml = '';
+  }
+
+  const framesHtml = isVideo
+    ? (d.video_info?.n_frames_analyzed
+        ? `<span>🎞 ${d.video_info.n_frames_analyzed} frames</span>`
+        : '')
+    : (d.frames_analyzed ? `<span>🎞 ${d.frames_analyzed} frames</span>` : '');
+
+  document.getElementById('result-panel').innerHTML = `
+    <div class="result-card result-${verdictClass}" id="result-card">
+      <div class="result-header">
+        <div class="result-file">
+          <span class="result-label">FILE</span>
+          <span class="result-value">${filename}</span>
+        </div>
+        <div class="result-verdict verdict-${verdictClass}">${d.verdict.toUpperCase()}</div>
+      </div>
+
+      <div class="result-body">
+        <div class="chart-col">
+          <div class="chart-wrap">
+            <canvas id="layerChart" width="220" height="220"></canvas>
+            <div class="chart-center-label">
+              <span class="chart-pct">${(d.final_score * 100).toFixed(1)}%</span>
+              <span class="chart-pct-sub">FAKE PROB.</span>
+            </div>
+          </div>
+        </div>
+        <div class="layers-col">
+          <div class="layers-title">LAYER BREAKDOWN</div>
+          ${barsHtml}
+          ${temporalHtml}
+        </div>
+      </div>
+
+      <div class="result-meta">
+        <span>🔍 ${d.confidence} confidence (${d.confidence_pct}%)</span>
+        <span>🧬 ${d.media_type.toUpperCase()}</span>
+        ${framesHtml}
+        <span class="meta-final ${d.final_score > 0.5 ? 'meta-fake' : 'meta-real'}">
+          FINAL SCORE: ${(d.final_score * 100).toFixed(2)}%
+        </span>
+      </div>
+    </div>
+  `;
+
+
+  // Animate in
+  requestAnimationFrame(() => {
+    document.getElementById('result-card').style.animation = 'fadeSlideUp .4s ease';
+  });
+
+  // Draw Chart.js donut
+  const scores = layers.map(l => l.score);
+  const total  = scores.reduce((a, b) => a + b, 0) || 1;
+  const style  = getComputedStyle(document.documentElement);
+
+  new Chart(document.getElementById('layerChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: layers.map(l => l.name),
+      datasets: [{
+        data: scores.map(s => s / total),
+        backgroundColor: [
+          style.getPropertyValue('--c1').trim(),
+          style.getPropertyValue('--c2').trim(),
+          style.getPropertyValue('--c3').trim(),
+          style.getPropertyValue('--c4').trim(),
+          style.getPropertyValue('--c5').trim(),
+        ],
+        borderColor: 'transparent',
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      cutout: '68%',
+      animation: { duration: 900, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) =>
+              ` ${ctx.label}: ${(scores[ctx.dataIndex] * 100).toFixed(1)}% fake signal`
+          },
+          backgroundColor: '#0d0d0d',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#aaa',
+          bodyColor: '#e0e0e0',
+          padding: 10,
+        }
+      }
+    }
+  });
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}DeepFake Detector{% endblock %}</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- HTMX -->
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="logo">
+      <span class="logo-bracket">[</span>
+      DEEPFAKE<span class="logo-accent">SCAN</span>
+      <span class="logo-bracket">]</span>
+    </div>
+    <nav class="header-nav">
+      <span class="nav-tag">v1.0</span>
+      <span class="nav-tag">EfficientNet-B0</span>
+      <span class="nav-tag nav-live">● LIVE</span>
+    </nav>
+  </header>
+
+  <main class="site-main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <span>DEEPFAKE DETECTOR — FORENSIC ANALYSIS SYSTEM</span>
+    <span class="footer-sep">///</span>
+    <span>5-LAYER SIGNAL FUSION</span>
+  </footer>
+
+</body>
+</html>

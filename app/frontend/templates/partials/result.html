@@ -1,0 +1,153 @@
+{#
+  Variables expected from the view:
+    result.filename
+    result.final_score          (0.0–1.0, fake probability)
+    result.verdict              ("FAKE" | "REAL" | "UNCERTAIN")
+    result.ml_score             (0.0–1.0)
+    result.ela_score            (0.0–1.0)
+    result.fft_score            (0.0–1.0)
+    result.noise_score          (0.0–1.0)
+    result.metadata_score       (0.0–1.0)
+    result.processing_time_ms   (int)
+    result.frames_analyzed      (int | None, video only)
+    result.temporal_score       (float | None, video only)
+#}
+
+<div class="result-card result-{{ result.verdict | lower }}" id="result-card">
+
+  <!-- Header row -->
+  <div class="result-header">
+    <div class="result-file">
+      <span class="result-label">FILE</span>
+      <span class="result-value">{{ result.filename }}</span>
+    </div>
+    <div class="result-verdict verdict-{{ result.verdict | lower }}">
+      {{ result.verdict }}
+    </div>
+  </div>
+
+  <div class="result-body">
+
+    <!-- Left: Donut chart -->
+    <div class="chart-col">
+      <div class="chart-wrap">
+        <canvas id="layerChart" width="260" height="260"></canvas>
+        <div class="chart-center-label">
+          <span class="chart-pct">{{ (result.final_score * 100) | round(1) }}%</span>
+          <span class="chart-pct-sub">FAKE PROB.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Per-layer bars -->
+    <div class="layers-col">
+      <div class="layers-title">LAYER BREAKDOWN</div>
+
+      {% set layers = [
+        ("ML MODEL",  result.ml_score,       "var(--c1)"),
+        ("ELA",       result.ela_score,      "var(--c2)"),
+        ("FFT",       result.fft_score,      "var(--c3)"),
+        ("NOISE",     result.noise_score,    "var(--c4)"),
+        ("METADATA",  result.metadata_score, "var(--c5)"),
+      ] %}
+
+      {% for name, score, color in layers %}
+      <div class="layer-row">
+        <span class="layer-name">{{ name }}</span>
+        <div class="layer-bar-track">
+          <div
+            class="layer-bar-fill"
+            style="width: {{ (score * 100) | round(1) }}%; background: {{ color }};"
+          ></div>
+        </div>
+        <span class="layer-pct">{{ (score * 100) | round(1) }}%</span>
+      </div>
+      {% endfor %}
+
+      {% if result.temporal_score is not none %}
+      <div class="layer-row layer-extra">
+        <span class="layer-name">TEMPORAL</span>
+        <div class="layer-bar-track">
+          <div
+            class="layer-bar-fill"
+            style="width: {{ (result.temporal_score * 100) | round(1) }}%; background: var(--c-temporal);"
+          ></div>
+        </div>
+        <span class="layer-pct">{{ (result.temporal_score * 100) | round(1) }}%</span>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- Footer meta -->
+  <div class="result-meta">
+    <span>⏱ {{ result.processing_time_ms }}ms</span>
+    {% if result.frames_analyzed %}
+    <span>🎞 {{ result.frames_analyzed }} frames</span>
+    {% endif %}
+    <span class="meta-final {{ 'meta-fake' if result.final_score > 0.5 else 'meta-real' }}">
+      FINAL SCORE: {{ (result.final_score * 100) | round(2) }}%
+    </span>
+  </div>
+</div>
+
+<!-- Chart.js — render after DOM is ready -->
+<script>
+(function () {
+  const ctx = document.getElementById('layerChart').getContext('2d');
+
+  const scores = [
+    {{ result.ml_score }},
+    {{ result.ela_score }},
+    {{ result.fft_score }},
+    {{ result.noise_score }},
+    {{ result.metadata_score }},
+  ];
+
+  // Normalize so slices sum to 1 (proportional contribution)
+  const total = scores.reduce((a, b) => a + b, 0) || 1;
+  const data = scores.map(s => s / total);
+
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['ML Model', 'ELA', 'FFT', 'Noise', 'Metadata'],
+      datasets: [{
+        data: data,
+        backgroundColor: [
+          getComputedStyle(document.documentElement).getPropertyValue('--c1').trim(),
+          getComputedStyle(document.documentElement).getPropertyValue('--c2').trim(),
+          getComputedStyle(document.documentElement).getPropertyValue('--c3').trim(),
+          getComputedStyle(document.documentElement).getPropertyValue('--c4').trim(),
+          getComputedStyle(document.documentElement).getPropertyValue('--c5').trim(),
+        ],
+        borderColor: 'transparent',
+        borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      cutout: '68%',
+      animation: { animateRotate: true, duration: 900, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const raw = scores[ctx.dataIndex];
+              return ` ${ctx.label}: ${(raw * 100).toFixed(1)}% fake signal`;
+            }
+          },
+          backgroundColor: '#0d0d0d',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#aaa',
+          bodyColor: '#e0e0e0',
+          padding: 10,
+        }
+      }
+    }
+  });
+})();
+</script>
