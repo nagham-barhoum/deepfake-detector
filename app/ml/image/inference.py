@@ -218,19 +218,19 @@ def compute_final_score(
     elif metadata_result.get("has_exif", False):
         # EXIF موجود بس بدون كاميرا (Photoshop مثلاً)
         w_ml       = 0.50
-        w_ela      = 0.13
-        w_fft      = 0.11
-        w_noise    = 0.10
-        w_metadata = 0.16
+        w_ela      = 0.12
+        w_fft      = 0.10
+        w_noise    = 0.08
+        w_metadata = 0.20
 
     else:
         # لا معلومات metadata على الإطلاق
         # → لا نترك ML وحده يقرر، خفّض وزنه قليلاً
-        w_ml       = 0.40
-        w_ela      = 0.16
-        w_fft      = 0.18
-        w_noise    = 0.14
-        w_metadata = 0.12
+        w_ml       = 0.60
+        w_ela      = 0.10
+        w_fft      = 0.08
+        w_noise    = 0.07
+        w_metadata = 0.15
 
 
     # ── الـ Weighted Average ──────────────────────────────────────────────

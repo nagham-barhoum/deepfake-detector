@@ -181,7 +181,7 @@ def analyze_single_frame(
 ) -> FrameAnalysisResult:
 
     # ── Normalize frame for ML (removes h264 artifacts) ───────────────────────
-    norm_path = _normalize_frame_for_ml(tmp_path)
+    norm_path = tmp_path
     norm_is_different = norm_path != tmp_path
 
     try:
@@ -403,8 +403,7 @@ def analyze_video(
         # ← أضيف هون
         video_meta_score = _video_metadata_score(meta)
         if verbose:
-            print(f"  📐 Video metadata score: {video_meta_score:.3f} "
-                  f"({meta.width}×{meta.height} | {meta.fps}fps)")
+            print(f"  📐 Video metadata score: {video_meta_score:.3f} "f"({meta.width}×{meta.height} | {meta.fps}fps)")
 
         # Dynamic weights بناءً على قوة الـ metadata signal
         if video_meta_score >= 0.50:
@@ -414,14 +413,30 @@ def analyze_video(
             w_meta     = 0.30
         else:
             # metadata ضعيفة → نعتمد على frames أكثر
-            w_frame    = 0.70
-            w_temporal = 0.25
+            w_frame    = 0.80
+            w_temporal = 0.15
             w_meta     = 0.05
 
+        temporal_adjusted = max(
+            temporal.temporal_score,
+            frame_aggregate * 0.75
+        )
+        suspicious_ratio = (
+            sum(1 for r in frame_results if r.frame_score >= 0.55)
+            / len(frame_results)
+        )
+        frame_boost = 0.0
+
+        if suspicious_ratio >= 0.70:
+            frame_boost = 0.05
+        elif suspicious_ratio >= 0.50:
+            frame_boost = 0.03
+            
         final_score = (
-            frame_aggregate         * w_frame    +
-            temporal.temporal_score * w_temporal +
-            video_meta_score        * w_meta
+            frame_aggregate * w_frame +
+            temporal_adjusted * w_temporal +
+            video_meta_score * w_meta +
+            frame_boost
         )
         final_score = round(float(np.clip(final_score, 0.0, 1.0)), 4)
 
@@ -489,60 +504,3 @@ def _bar(score: float, length: int = 28) -> str:
     return "█" * filled + "░" * (length - filled)
 
 
-def _print_result(
-    final_score, verdict, confidence, frame_agg,
-    temporal: TemporalResult, meta: VideoMeta,
-    proc_time, suspicious_frames,
-    frame_results: list[FrameAnalysisResult],
-    faces_detected: int,
-):
-    n           = len(frame_results)
-    avg_ml_raw  = sum(r.ml_score_raw for r in frame_results) / n if n else 0
-    avg_ml_cal  = sum(r.ml_score for r in frame_results) / n if n else 0
-    face_frames = [r for r in frame_results if r.face_found]
-    avg_face_ml = sum(r.ml_face_score for r in face_frames) / len(face_frames) if face_frames else 0
-    avg_ela     = sum(r.ela_score for r in frame_results) / n if n else 0
-    avg_fft     = sum(r.fft_score for r in frame_results) / n if n else 0
-    avg_noise   = sum(r.noise_score for r in frame_results) / n if n else 0
-
-    print("\n  ╔══════════════════════════════════════════════════════╗")
-    print("  ║           Video Deepfake Analysis Results           ║")
-    print("  ╠══════════════════════════════════════════════════════╣")
-    print(f"  ║  📊 Final AI Probability : {final_score * 100:>5.1f}%                      ║")
-    print(f"  ║  🏷️  Verdict             : {verdict:<28}║")
-    print(f"  ║  📈 Confidence           : {confidence:<28}║")
-    print("  ╠══════════════════════════════════════════════════════╣")
-    print(f"  ║  🧠 ML raw (avg)         : {avg_ml_raw * 100:>5.1f}%                         ║")
-    print(f"  ║  🧠 ML calibrated (avg)  : {avg_ml_cal * 100:>5.1f}%  (T={ML_TEMPERATURE})                ║")
-    if faces_detected > 0:
-        print(f"  ║  👤 Face ML (avg)        : {avg_face_ml * 100:>5.1f}%  ({faces_detected}/{n} frames)       ║")
-    else:
-        print(f"  ║  👤 Face Detection       : No faces found              ║")
-    print(f"  ║  🔬 ELA (avg)            : {avg_ela * 100:>5.1f}%                         ║")
-    print(f"  ║  📡 FFT (avg)            : {avg_fft * 100:>5.1f}%                         ║")
-    print(f"  ║  🌊 Noise (avg)          : {avg_noise * 100:>5.1f}%                         ║")
-    print("  ╠══════════════════════════════════════════════════════╣")
-    print(f"  ║  🎬 Frame Aggregate      : {frame_agg * 100:>5.1f}%  (w={WEIGHT_FRAME_AGG:.0%})            ║")
-    print(f"  ║  ⏱️  Temporal Score       : {temporal.temporal_score * 100:>5.1f}%  (w={WEIGHT_TEMPORAL:.0%})            ║")
-    print("  ╠══════════════════════════════════════════════════════╣")
-    print(f"  ║  [{_bar(final_score)}]     ║")
-    print("  ╠══════════════════════════════════════════════════════╣")
-    print(f"  ║  📹 Duration : {meta.duration_sec}s  |  Frames: {n}  |  Suspicious: {len(suspicious_frames)}       ║")
-    print(f"  ║  🎞️  Codec   : {meta.codec:<8}  |  Resolution: {meta.width}×{meta.height}           ║")
-    print(f"  ║  {temporal.interpretation:<52}║")
-    print(f"  ║  Score variance: {temporal.score_variance:.4f}  |  Mean gradient: {temporal.mean_gradient:.4f}       ║")
-    print("  ╠══════════════════════════════════════════════════════╣")
-    print(f"  ║  ⏱️  Processing time: {proc_time}s                                 ║")
-    print("  ╚══════════════════════════════════════════════════════╝")
-
-    if suspicious_frames:
-        print(f"\n  🚨 Top suspicious frames (ml_raw → ml_cal):")
-        for f in sorted(suspicious_frames, key=lambda x: -x["frame_score"])[:5]:
-            face_info = f"face={f['ml_face_score']:.3f}" if f["face_found"] else "no_face"
-            print(
-                f"     t={f['timestamp']:.1f}s  "
-                f"frame={f['frame_score']:.3f}  "
-                f"ml_raw={f['ml_score_raw']:.3f}→cal={f['ml_score_cal']:.3f}  "
-                f"{face_info}  "
-                f"{'[keyframe]' if f['is_keyframe'] else ''}"
-            )

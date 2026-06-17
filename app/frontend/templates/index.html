@@ -1,4 +1,4 @@
- ..{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}DeepFake Detector — Upload{% endblock %}
 
 {% block content %}
@@ -78,6 +78,174 @@
 <!-- Result injected here -->
 <section id="result-panel"></section>
 
+<style>
+/* ── Video-specific result styles ─────────────────────────────────────────── */
+.video-result-card {
+  margin-top: 2rem;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  overflow: hidden;
+  animation: fadeSlideUp .4s ease;
+}
+.video-result-card.result-fake  { border-color: var(--c1, #ff4040); }
+.video-result-card.result-real  { border-color: #00e676; }
+.video-result-card.result-uncertain { border-color: #ffd740; }
+
+.vr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 1.5rem;
+  background: #111;
+  border-bottom: 1px solid #222;
+}
+.vr-file-label { font-size: .7rem; color: #666; letter-spacing: .12em; }
+.vr-filename   { font-size: .95rem; color: #ddd; margin-top: .15rem; word-break: break-all; }
+.vr-verdict    { font-size: 1.4rem; font-weight: 800; letter-spacing: .12em; padding: .3rem .9rem; border-radius: 4px; }
+.verdict-fake      { background: rgba(255,64,64,.15); color: #ff4040; border: 1px solid #ff4040; }
+.verdict-real      { background: rgba(0,230,118,.1);  color: #00e676; border: 1px solid #00e676; }
+.verdict-uncertain { background: rgba(255,215,64,.1); color: #ffd740; border: 1px solid #ffd740; }
+
+/* Score hero */
+.vr-score-hero {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: #0d0d0d;
+  border-bottom: 1px solid #1e1e1e;
+  flex-wrap: wrap;
+}
+.vr-donut-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+.vr-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.vr-donut-pct  { font-size: 1.5rem; font-weight: 800; color: #fff; }
+.vr-donut-sub  { font-size: .6rem;  color: #666; letter-spacing: .1em; }
+
+.vr-score-meta { display: flex; flex-direction: column; gap: .6rem; }
+.vr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .8rem;
+  padding: .3rem .75rem;
+  border-radius: 20px;
+  width: fit-content;
+}
+.badge-confidence { background: #1a1a2e; color: #818cf8; border: 1px solid #3730a3; }
+.badge-id         { background: #1a1a1a; color: #888;    border: 1px solid #333;    }
+.badge-ai         { background: #1a0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+.badge-real-tag   { background: #0a1a0e; color: #4ade80; border: 1px solid #14532d; }
+
+/* Layer scores */
+.vr-section {
+  padding: 1.2rem 1.5rem;
+  border-bottom: 1px solid #1a1a1a;
+}
+.vr-section-title {
+  font-size: .65rem;
+  letter-spacing: .15em;
+  color: #555;
+  margin-bottom: .9rem;
+  text-transform: uppercase;
+}
+.vr-layer-row {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  margin-bottom: .5rem;
+}
+.vr-layer-name  { font-size: .75rem; color: #aaa; width: 130px; flex-shrink: 0; }
+.vr-bar-track   { flex: 1; height: 6px; background: #1e1e1e; border-radius: 3px; overflow: hidden; }
+.vr-bar-fill    { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.vr-bar-pct     { font-size: .75rem; color: #777; width: 45px; text-align: right; flex-shrink: 0; }
+
+/* Temporal grid */
+.vr-temporal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: .75rem;
+}
+.vr-temp-item {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: .75rem 1rem;
+}
+.vr-temp-label { font-size: .65rem; color: #555; letter-spacing: .1em; text-transform: uppercase; }
+.vr-temp-value { font-size: 1.05rem; font-weight: 700; color: #e0e0e0; margin-top: .2rem; }
+.vr-temp-interp {
+  grid-column: 1 / -1;
+  background: #0d1117;
+  border: 1px solid #1e2a1e;
+  border-radius: 6px;
+  padding: .75rem 1rem;
+  font-size: .8rem;
+  color: #6ee7b7;
+  font-style: italic;
+}
+
+/* Video info grid */
+.vr-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: .6rem;
+}
+.vr-info-item {
+  background: #111;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: .65rem .9rem;
+}
+.vr-info-label { font-size: .62rem; color: #555; letter-spacing: .1em; text-transform: uppercase; }
+.vr-info-value { font-size: .9rem; font-weight: 600; color: #ccc; margin-top: .15rem; }
+
+/* Suspicious frames table */
+.vr-frames-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .78rem;
+}
+.vr-frames-table th {
+  text-align: left;
+  color: #555;
+  font-weight: 600;
+  letter-spacing: .1em;
+  font-size: .65rem;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid #222;
+}
+.vr-frames-table td {
+  padding: .45rem .6rem;
+  color: #bbb;
+  border-bottom: 1px solid #161616;
+}
+.vr-frames-table tr:last-child td { border-bottom: none; }
+.vr-frames-table tr.row-suspicious td { color: #fca5a5; }
+.frame-badge {
+  display: inline-block;
+  font-size: .6rem;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+  margin-left: .3rem;
+}
+.badge-sus { background: #3b0000; color: #f87171; }
+.badge-key { background: #1e1b00; color: #fbbf24; }
+
+.vr-no-frames { color: #444; font-size: .8rem; font-style: italic; padding: .5rem 0; }
+</style>
 
 <script>
 // ── Tab switcher ──────────────────────────────────────────────────────────────
@@ -107,7 +275,6 @@ async function runAnalysis(type) {
   const form = new FormData();
   form.append('file', file);
 
-  // Show spinner
   document.getElementById('spinner').classList.remove('hidden');
   document.getElementById('result-panel').innerHTML = '';
 
@@ -124,7 +291,12 @@ async function runAnalysis(type) {
     }
 
     const data = await resp.json();
-    renderResult(data, file.name);
+
+    if (data.media_type === 'video') {
+      renderVideoResult(data, file.name);
+    } else {
+      renderImageResult(data, file.name);
+    }
 
   } catch (e) {
     document.getElementById('result-panel').innerHTML =
@@ -134,80 +306,33 @@ async function runAnalysis(type) {
   }
 }
 
-// ── Render result card ────────────────────────────────────────────────────────
-function renderResult(d, filename) {
-  // Backend returns different payloads for image vs video
-  const isVideo = (d.media_type || '').toLowerCase() === 'video';
+// ── Render IMAGE result (unchanged) ──────────────────────────────────────────
+function renderImageResult(d, filename) {
+  const ls = d.layer_scores;
 
   let verdictClass = 'uncertain';
-  const v = (d.verdict || '').toLowerCase();
-  if (v.includes('real')) verdictClass = 'real';
-  if (v.includes('ai') || v.includes('deepfake')) verdictClass = 'fake';
+  if (d.final_score >= 0.60) verdictClass = 'fake';
+  else if (d.final_score <= 0.35) verdictClass = 'real';
 
-  const pct = (x) => (Number(x) * 100).toFixed(1) + '%';
+  const pct = (v) => (v * 100).toFixed(1) + '%';
 
-  const ls = d.layer_scores || {};
+  const layers = [
+    { name: 'ML MODEL', score: ls.ml_score,       color: 'var(--c1)' },
+    { name: 'ELA',      score: ls.ela_score,      color: 'var(--c2)' },
+    { name: 'FFT',      score: ls.fft_score,      color: 'var(--c3)' },
+    { name: 'NOISE',    score: ls.noise_score,    color: 'var(--c4)' },
+    { name: 'METADATA', score: ls.metadata_score, color: 'var(--c5)' },
+  ];
 
-  let layers = [];
-  let barsHtml = '';
-  let temporalHtml = '';
-
-  if (!isVideo) {
-    // Image: 5 layer breakdown
-    layers = [
-      { name: 'ML MODEL', score: ls.ml_score,       color: 'var(--c1)' },
-      { name: 'ELA',      score: ls.ela_score,      color: 'var(--c2)' },
-      { name: 'FFT',      score: ls.fft_score,      color: 'var(--c3)' },
-      { name: 'NOISE',    score: ls.noise_score,    color: 'var(--c4)' },
-      { name: 'METADATA', score: ls.metadata_score, color: 'var(--c5)' },
-    ];
-
-    barsHtml = layers.map(l => `
-      <div class="layer-row">
-        <span class="layer-name">${l.name}</span>
-        <div class="layer-bar-track">
-          <div class="layer-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
-        </div>
-        <span class="layer-pct">${pct(l.score)}</span>
+  const barsHtml = layers.map(l => `
+    <div class="layer-row">
+      <span class="layer-name">${l.name}</span>
+      <div class="layer-bar-track">
+        <div class="layer-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
       </div>
-    `).join('');
-
-    temporalHtml = d.temporal_score != null ? `
-      <div class="layer-row layer-extra">
-        <span class="layer-name">TEMPORAL</span>
-        <div class="layer-bar-track">
-          <div class="layer-bar-fill" style="width:${pct(d.temporal_score)};background:var(--c-temporal)"></div>
-        </div>
-        <span class="layer-pct">${pct(d.temporal_score)}</span>
-      </div>` : '';
-  } else {
-    // Video: show only frame_aggregate + temporal_score
-    const frameAgg = ls.frame_aggregate;
-    const temporalScore = ls.temporal_score;
-
-    layers = [
-      { name: 'FRAME AGGREGATE', score: frameAgg, color: 'var(--c1)' },
-      { name: 'TEMPORAL',        score: temporalScore, color: 'var(--c-temporal)' },
-    ];
-
-    barsHtml = layers.map(l => `
-      <div class="layer-row">
-        <span class="layer-name">${l.name}</span>
-        <div class="layer-bar-track">
-          <div class="layer-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
-        </div>
-        <span class="layer-pct">${pct(l.score)}</span>
-      </div>
-    `).join('');
-
-    temporalHtml = '';
-  }
-
-  const framesHtml = isVideo
-    ? (d.video_info?.n_frames_analyzed
-        ? `<span>🎞 ${d.video_info.n_frames_analyzed} frames</span>`
-        : '')
-    : (d.frames_analyzed ? `<span>🎞 ${d.frames_analyzed} frames</span>` : '');
+      <span class="layer-pct">${pct(l.score)}</span>
+    </div>
+  `).join('');
 
   document.getElementById('result-panel').innerHTML = `
     <div class="result-card result-${verdictClass}" id="result-card">
@@ -218,7 +343,6 @@ function renderResult(d, filename) {
         </div>
         <div class="result-verdict verdict-${verdictClass}">${d.verdict.toUpperCase()}</div>
       </div>
-
       <div class="result-body">
         <div class="chart-col">
           <div class="chart-wrap">
@@ -232,14 +356,11 @@ function renderResult(d, filename) {
         <div class="layers-col">
           <div class="layers-title">LAYER BREAKDOWN</div>
           ${barsHtml}
-          ${temporalHtml}
         </div>
       </div>
-
       <div class="result-meta">
         <span>🔍 ${d.confidence} confidence (${d.confidence_pct}%)</span>
         <span>🧬 ${d.media_type.toUpperCase()}</span>
-        ${framesHtml}
         <span class="meta-final ${d.final_score > 0.5 ? 'meta-fake' : 'meta-real'}">
           FINAL SCORE: ${(d.final_score * 100).toFixed(2)}%
         </span>
@@ -247,13 +368,10 @@ function renderResult(d, filename) {
     </div>
   `;
 
-
-  // Animate in
   requestAnimationFrame(() => {
     document.getElementById('result-card').style.animation = 'fadeSlideUp .4s ease';
   });
 
-  // Draw Chart.js donut
   const scores = layers.map(l => l.score);
   const total  = scores.reduce((a, b) => a + b, 0) || 1;
   const style  = getComputedStyle(document.documentElement);
@@ -284,6 +402,224 @@ function renderResult(d, filename) {
           callbacks: {
             label: (ctx) =>
               ` ${ctx.label}: ${(scores[ctx.dataIndex] * 100).toFixed(1)}% fake signal`
+          },
+          backgroundColor: '#0d0d0d',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#aaa',
+          bodyColor: '#e0e0e0',
+          padding: 10,
+        }
+      }
+    }
+  });
+}
+
+// ── Render VIDEO result ───────────────────────────────────────────────────────
+function renderVideoResult(d, filename) {
+  const ls  = d.layer_scores  || {};
+  const tmp = d.temporal      || {};
+  const vi  = d.video_info    || {};
+  const sf  = d.suspicious_frames || [];
+
+  let verdictClass = 'uncertain';
+  if (d.final_score >= 0.65) verdictClass = 'fake';
+  else if (d.final_score <= 0.35) verdictClass = 'real';
+
+  const pct  = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const fmt  = (v, dec=2) => v != null ? Number(v).toFixed(dec) : '—';
+
+  // Layer score bars (frame_aggregate + temporal_score)
+  const videoLayers = [
+    { name: 'FRAME AGGREGATE', score: ls.frame_aggregate ?? 0, color: 'var(--c1, #ff4040)' },
+    { name: 'TEMPORAL SCORE',  score: ls.temporal_score  ?? 0, color: 'var(--c3, #3b82f6)' },
+  ];
+
+  const layerBarsHtml = videoLayers.map(l => `
+    <div class="vr-layer-row">
+      <span class="vr-layer-name">${l.name}</span>
+      <div class="vr-bar-track">
+        <div class="vr-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
+      </div>
+      <span class="vr-bar-pct">${pct(l.score)}</span>
+    </div>
+  `).join('');
+
+  // Donut chart data
+  const donutScores = videoLayers.map(l => l.score);
+  const donutTotal  = donutScores.reduce((a,b) => a+b, 0) || 1;
+
+  // Temporal breakdown grid
+  const temporalHtml = `
+    <div class="vr-temporal-grid">
+      <div class="vr-temp-item">
+        <div class="vr-temp-label">Score Variance</div>
+        <div class="vr-temp-value">${fmt(tmp.score_variance, 4)}</div>
+      </div>
+      <div class="vr-temp-item">
+        <div class="vr-temp-label">Mean Gradient</div>
+        <div class="vr-temp-value">${fmt(tmp.mean_gradient, 4)}</div>
+      </div>
+      <div class="vr-temp-item">
+        <div class="vr-temp-label">Consistency Score</div>
+        <div class="vr-temp-value">${pct(tmp.consistency_score)}</div>
+      </div>
+      ${tmp.interpretation ? `
+      <div class="vr-temp-interp">
+        💬 ${tmp.interpretation}
+      </div>` : ''}
+    </div>
+  `;
+
+  // Video info grid
+  const infoHtml = `
+    <div class="vr-info-grid">
+      <div class="vr-info-item">
+        <div class="vr-info-label">Duration</div>
+        <div class="vr-info-value">${vi.duration_sec != null ? vi.duration_sec.toFixed(1) + 's' : '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">FPS</div>
+        <div class="vr-info-value">${vi.fps != null ? vi.fps.toFixed(1) : '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">Resolution</div>
+        <div class="vr-info-value">${vi.resolution || '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">Codec</div>
+        <div class="vr-info-value">${vi.codec || '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">Frames Analyzed</div>
+        <div class="vr-info-value">${vi.n_frames_analyzed ?? '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">Processing Time</div>
+        <div class="vr-info-value">${vi.processing_time_s != null ? vi.processing_time_s.toFixed(2) + 's' : '—'}</div>
+      </div>
+    </div>
+  `;
+
+  // Suspicious frames table
+  let framesHtml;
+  if (sf.length === 0) {
+    framesHtml = '<p class="vr-no-frames">No suspicious frames detected.</p>';
+  } else {
+    const rows = sf.map(f => `
+      <tr class="${f.is_suspicious ? 'row-suspicious' : ''}">
+        <td>${f.timestamp != null ? f.timestamp.toFixed(3) + 's' : '—'}</td>
+        <td>${f.frame_score != null ? (f.frame_score * 100).toFixed(1) + '%' : '—'}</td>
+        <td>
+          ${f.is_suspicious ? '<span class="frame-badge badge-sus">SUSPICIOUS</span>' : '—'}
+          ${f.is_keyframe   ? '<span class="frame-badge badge-key">KEYFRAME</span>'   : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    framesHtml = `
+      <table class="vr-frames-table">
+        <thead>
+          <tr>
+            <th>TIMESTAMP</th>
+            <th>FAKE SCORE</th>
+            <th>FLAGS</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  // AI badge
+  const aiBadgeHtml = d.is_ai
+    ? `<span class="vr-badge badge-ai">🤖 AI-GENERATED</span>`
+    : `<span class="vr-badge badge-real-tag">✅ LIKELY AUTHENTIC</span>`;
+
+  document.getElementById('result-panel').innerHTML = `
+    <div class="video-result-card result-${verdictClass}" id="result-card">
+
+      <!-- Header -->
+      <div class="vr-header">
+        <div>
+          <div class="vr-file-label">FILE</div>
+          <div class="vr-filename">${filename}</div>
+        </div>
+        <div class="vr-verdict verdict-${verdictClass}">${(d.verdict || '').toUpperCase()}</div>
+      </div>
+
+      <!-- Score hero -->
+      <div class="vr-score-hero">
+        <div class="vr-donut-wrap">
+          <canvas id="videoDonut" width="140" height="140"></canvas>
+          <div class="vr-donut-center">
+            <span class="vr-donut-pct">${(d.final_score * 100).toFixed(1)}%</span>
+            <span class="vr-donut-sub">FAKE PROB.</span>
+          </div>
+        </div>
+        <div class="vr-score-meta">
+          ${aiBadgeHtml}
+          <span class="vr-badge badge-confidence">
+            🔍 ${d.confidence || '—'} confidence &nbsp;·&nbsp; ${d.confidence_pct ?? '—'}%
+          </span>
+          <span class="vr-badge badge-id">
+            🆔 ${d.analysis_id || '—'}
+          </span>
+        </div>
+      </div>
+
+      <!-- Layer scores -->
+      <div class="vr-section">
+        <div class="vr-section-title">Layer Scores</div>
+        ${layerBarsHtml}
+      </div>
+
+      <!-- Temporal analysis -->
+      <div class="vr-section">
+        <div class="vr-section-title">Temporal Analysis</div>
+        ${temporalHtml}
+      </div>
+
+      <!-- Video info -->
+      <div class="vr-section">
+        <div class="vr-section-title">Video Info</div>
+        ${infoHtml}
+      </div>
+
+      <!-- Suspicious frames -->
+      <div class="vr-section">
+        <div class="vr-section-title">Suspicious Frames (${sf.length})</div>
+        ${framesHtml}
+      </div>
+
+    </div>
+  `;
+
+  // Draw donut for video layer scores
+  const style = getComputedStyle(document.documentElement);
+  new Chart(document.getElementById('videoDonut').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: videoLayers.map(l => l.name),
+      datasets: [{
+        data: donutScores.map(s => s / donutTotal),
+        backgroundColor: [
+          style.getPropertyValue('--c1').trim() || '#ff4040',
+          style.getPropertyValue('--c3').trim() || '#3b82f6',
+        ],
+        borderColor: 'transparent',
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      cutout: '68%',
+      animation: { duration: 900, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) =>
+              ` ${ctx.label}: ${(donutScores[ctx.dataIndex] * 100).toFixed(1)}%`
           },
           backgroundColor: '#0d0d0d',
           borderColor: '#333',

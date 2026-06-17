@@ -1,0 +1,659 @@
+{% extends "base.html" %}
+{% block title %}كاشف التزييف العميق — رفع الملفات{% endblock %}
+
+{% block content %}
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;500;700&display=swap');
+
+/* ── Arabic RTL overrides ─────────────────────────────────────────────────── */
+.ar-page {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Cairo', 'Tajawal', sans-serif;
+}
+.ar-page .hero-sub    { letter-spacing: 0; }
+.ar-page .hero-title  { text-align: right; }
+.ar-page .tab-bar     { flex-direction: row-reverse; }
+.ar-page .form-footer { justify-content: flex-start; }
+.ar-page .btn-arrow   { transform: scaleX(-1); display: inline-block; }
+.ar-page .legend-items { flex-direction: row-reverse; flex-wrap: wrap; }
+.ar-page .spinner-label { letter-spacing: 0; }
+
+/* Image result RTL */
+.ar-page .result-header { flex-direction: row-reverse; }
+.ar-page .result-body   { flex-direction: row-reverse; }
+.ar-page .layer-row     { flex-direction: row-reverse; }
+.ar-page .layer-name    { text-align: right; }
+.ar-page .layer-pct     { text-align: left; }
+.ar-page .result-meta   { flex-direction: row-reverse; flex-wrap: wrap; }
+.ar-page .layers-title  { text-align: right; }
+
+/* Video result RTL */
+.ar-page .vr-header       { flex-direction: row-reverse; }
+.ar-page .vr-score-hero   { flex-direction: row-reverse; }
+.ar-page .vr-score-meta   { align-items: flex-end; }
+.ar-page .vr-badge        { flex-direction: row-reverse; }
+.ar-page .vr-layer-row    { flex-direction: row-reverse; }
+.ar-page .vr-layer-name   { text-align: right; }
+.ar-page .vr-bar-pct      { text-align: left; }
+.ar-page .vr-section-title { letter-spacing: 0; }
+.ar-page .vr-temp-label   { letter-spacing: 0; }
+.ar-page .vr-info-label   { letter-spacing: 0; }
+.ar-page .vr-verdict      { letter-spacing: 0; }
+.ar-page .vr-frames-table th { text-align: right; letter-spacing: 0; }
+.ar-page .vr-frames-table td { text-align: right; }
+.ar-page .frame-badge     { margin-left: 0; margin-right: .3rem; }
+
+/* ── Video card styles ──────────────────────────────────────────────────────── */
+.video-result-card {
+  margin-top: 2rem;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  overflow: hidden;
+  animation: fadeSlideUp .4s ease;
+}
+.video-result-card.result-fake      { border-color: var(--c1, #ff4040); }
+.video-result-card.result-real      { border-color: #00e676; }
+.video-result-card.result-uncertain { border-color: #ffd740; }
+
+.vr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 1.5rem;
+  background: #111;
+  border-bottom: 1px solid #222;
+}
+.vr-file-label { font-size: .75rem; color: #666; }
+.vr-filename   { font-size: .95rem; color: #ddd; margin-top: .15rem; word-break: break-all; }
+.vr-verdict    { font-size: 1.3rem; font-weight: 800; padding: .3rem .9rem; border-radius: 4px; }
+.verdict-fake      { background: rgba(255,64,64,.15); color: #ff4040; border: 1px solid #ff4040; }
+.verdict-real      { background: rgba(0,230,118,.1);  color: #00e676; border: 1px solid #00e676; }
+.verdict-uncertain { background: rgba(255,215,64,.1); color: #ffd740; border: 1px solid #ffd740; }
+
+.vr-score-hero {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem;
+  background: #0d0d0d;
+  border-bottom: 1px solid #1e1e1e;
+  flex-wrap: wrap;
+}
+.vr-donut-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+  flex-shrink: 0;
+}
+.vr-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.vr-donut-pct { font-size: 1.5rem; font-weight: 800; color: #fff; }
+.vr-donut-sub { font-size: .65rem; color: #666; }
+
+.vr-score-meta { display: flex; flex-direction: column; gap: .6rem; }
+.vr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .82rem;
+  padding: .3rem .75rem;
+  border-radius: 20px;
+  width: fit-content;
+}
+.badge-confidence { background: #1a1a2e; color: #818cf8; border: 1px solid #3730a3; }
+.badge-id         { background: #1a1a1a; color: #888;    border: 1px solid #333; }
+.badge-ai         { background: #1a0a0a; color: #f87171; border: 1px solid #7f1d1d; }
+.badge-real-tag   { background: #0a1a0e; color: #4ade80; border: 1px solid #14532d; }
+
+.vr-section {
+  padding: 1.2rem 1.5rem;
+  border-bottom: 1px solid #1a1a1a;
+}
+.vr-section-title {
+  font-size: .75rem;
+  color: #555;
+  margin-bottom: .9rem;
+  font-weight: 700;
+}
+.vr-layer-row {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  margin-bottom: .5rem;
+}
+.vr-layer-name { font-size: .82rem; color: #aaa; width: 160px; flex-shrink: 0; }
+.vr-bar-track  { flex: 1; height: 6px; background: #1e1e1e; border-radius: 3px; overflow: hidden; }
+.vr-bar-fill   { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.vr-bar-pct    { font-size: .75rem; color: #777; width: 45px; flex-shrink: 0; }
+
+.vr-temporal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: .75rem;
+}
+.vr-temp-item {
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: .75rem 1rem;
+}
+.vr-temp-label { font-size: .72rem; color: #555; font-weight: 600; }
+.vr-temp-value { font-size: 1.05rem; font-weight: 700; color: #e0e0e0; margin-top: .2rem; }
+.vr-temp-interp {
+  grid-column: 1 / -1;
+  background: #0d1117;
+  border: 1px solid #1e2a1e;
+  border-radius: 6px;
+  padding: .75rem 1rem;
+  font-size: .85rem;
+  color: #6ee7b7;
+  font-style: italic;
+}
+
+.vr-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: .6rem;
+}
+.vr-info-item {
+  background: #111;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: .65rem .9rem;
+}
+.vr-info-label { font-size: .7rem; color: #555; font-weight: 600; }
+.vr-info-value { font-size: .9rem; font-weight: 600; color: #ccc; margin-top: .15rem; }
+
+.vr-frames-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8rem;
+}
+.vr-frames-table th {
+  color: #555;
+  font-weight: 700;
+  font-size: .72rem;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid #222;
+}
+.vr-frames-table td {
+  padding: .45rem .6rem;
+  color: #bbb;
+  border-bottom: 1px solid #161616;
+}
+.vr-frames-table tr:last-child td { border-bottom: none; }
+.vr-frames-table tr.row-suspicious td { color: #fca5a5; }
+.frame-badge {
+  display: inline-block;
+  font-size: .65rem;
+  padding: .1rem .35rem;
+  border-radius: 3px;
+}
+.badge-sus { background: #3b0000; color: #f87171; }
+.badge-key { background: #1e1b00; color: #fbbf24; }
+.vr-no-frames { color: #444; font-size: .85rem; font-style: italic; padding: .5rem 0; }
+</style>
+
+<div class="ar-page">
+
+<section class="hero">
+  <p class="hero-sub">تحليل جنائي متعدد الطبقات</p>
+  <h1 class="hero-title">اكتشف.<br/>حلّل.<br/>تحقّق.</h1>
+  <p class="hero-desc">
+    منظومة دمج خماسية الإشارات: الاستنتاج العصبي، تحليل مستوى الخطأ،
+    تحلل التردد، بصمة الضوضاء وتحليل البيانات الوصفية.
+  </p>
+</section>
+
+<section class="upload-section">
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('image', this)">صورة</button>
+    <button class="tab" onclick="switchTab('video', this)">فيديو</button>
+  </div>
+
+  <!-- Image -->
+  <div id="tab-image" class="tab-panel">
+    <label class="drop-zone" id="drop-image" for="image-input">
+      <div class="drop-inner">
+        <div class="drop-icon">⬡</div>
+        <span class="drop-title">أفلت الصورة هنا</span>
+        <span class="drop-hint">أو انقر للتصفح — JPG، PNG، WEBP</span>
+        <span class="drop-filename" id="image-filename"></span>
+      </div>
+      <input id="image-input" type="file" accept="image/*"
+             onchange="previewFile(this,'image-filename','drop-image')" />
+    </label>
+    <div class="form-footer">
+      <button class="btn-analyze" onclick="runAnalysis('image')">
+        <span>تشغيل التحليل</span><span class="btn-arrow">→</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Video -->
+  <div id="tab-video" class="tab-panel hidden">
+    <label class="drop-zone" id="drop-video" for="video-input">
+      <div class="drop-inner">
+        <div class="drop-icon">▶</div>
+        <span class="drop-title">أفلت الفيديو هنا</span>
+        <span class="drop-hint">أو انقر للتصفح — MP4، MOV، AVI</span>
+        <span class="drop-filename" id="video-filename"></span>
+      </div>
+      <input id="video-input" type="file" accept="video/*"
+             onchange="previewFile(this,'video-filename','drop-video')" />
+    </label>
+    <div class="form-footer">
+      <button class="btn-analyze" onclick="runAnalysis('video')">
+        <span>تشغيل التحليل</span><span class="btn-arrow">→</span>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- Layer legend -->
+<section class="layer-legend">
+  <div class="legend-title">طبقات الكشف</div>
+  <div class="legend-items">
+    <div class="legend-item"><span class="dot dot-1"></span>نموذج التعلم الآلي</div>
+    <div class="legend-item"><span class="dot dot-2"></span>تحليل مستوى الخطأ</div>
+    <div class="legend-item"><span class="dot dot-3"></span>تحليل الترددات</div>
+    <div class="legend-item"><span class="dot dot-4"></span>بصمة الضوضاء</div>
+    <div class="legend-item"><span class="dot dot-5"></span>البيانات الوصفية</div>
+  </div>
+</section>
+
+<!-- Spinner -->
+<div id="spinner" class="spinner-bar hidden">
+  <span class="spinner-label">جارٍ الفحص</span>
+  <div class="spinner-track"><div class="spinner-fill"></div></div>
+</div>
+
+<!-- Result injected here -->
+<section id="result-panel"></section>
+
+</div><!-- /.ar-page -->
+
+<script>
+// ── Tab switcher ──────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  btn.classList.add('active');
+}
+
+function previewFile(input, filenameId, zoneId) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById(filenameId).textContent = file.name;
+  document.getElementById(zoneId).classList.add('has-file');
+}
+
+// ── Main analysis call ────────────────────────────────────────────────────────
+async function runAnalysis(type) {
+  const input = document.getElementById(type + '-input');
+  if (!input.files.length) {
+    alert('يرجى تحديد ملف أولاً.');
+    return;
+  }
+
+  const file = input.files[0];
+  const form = new FormData();
+  form.append('file', file);
+
+  document.getElementById('spinner').classList.remove('hidden');
+  document.getElementById('result-panel').innerHTML = '';
+
+  try {
+    const endpoint = type === 'image'
+      ? '/api/v1/analyze/image'
+      : '/api/v1/analyze/video';
+
+    const resp = await fetch(endpoint, { method: 'POST', body: form });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || 'فشل التحليل');
+    }
+
+    const data = await resp.json();
+
+    if (data.media_type === 'video') {
+      renderVideoResult(data, file.name);
+    } else {
+      renderImageResult(data, file.name);
+    }
+
+  } catch (e) {
+    document.getElementById('result-panel').innerHTML =
+      `<div class="error-card">⚠ ${e.message}</div>`;
+  } finally {
+    document.getElementById('spinner').classList.add('hidden');
+  }
+}
+
+// ── Render IMAGE result ───────────────────────────────────────────────────────
+function renderImageResult(d, filename) {
+  const ls = d.layer_scores;
+
+  let verdictClass = 'uncertain';
+  if (d.final_score >= 0.65) verdictClass = 'fake';
+  else if (d.final_score <= 0.35) verdictClass = 'real';
+
+  const verdictAr = { fake: 'مزيّف', real: 'أصلي', uncertain: 'غير محدد' };
+  const pct = (v) => (v * 100).toFixed(1) + '%';
+
+  const layers = [
+    { name: 'نموذج التعلم الآلي', score: ls.ml_score,       color: 'var(--c1)' },
+    { name: 'تحليل مستوى الخطأ', score: ls.ela_score,      color: 'var(--c2)' },
+    { name: 'تحليل الترددات',    score: ls.fft_score,      color: 'var(--c3)' },
+    { name: 'بصمة الضوضاء',      score: ls.noise_score,    color: 'var(--c4)' },
+    { name: 'البيانات الوصفية',  score: ls.metadata_score, color: 'var(--c5)' },
+  ];
+
+  const barsHtml = layers.map(l => `
+    <div class="layer-row">
+      <span class="layer-pct">${pct(l.score)}</span>
+      <div class="layer-bar-track">
+        <div class="layer-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
+      </div>
+      <span class="layer-name">${l.name}</span>
+    </div>
+  `).join('');
+
+  document.getElementById('result-panel').innerHTML = `
+    <div class="result-card result-${verdictClass} ar-page" id="result-card">
+      <div class="result-header">
+        <div class="result-verdict verdict-${verdictClass}">${verdictAr[verdictClass]}</div>
+        <div class="result-file">
+          <span class="result-label">الملف</span>
+          <span class="result-value">${filename}</span>
+        </div>
+      </div>
+      <div class="result-body">
+        <div class="layers-col">
+          <div class="layers-title">تفصيل الطبقات</div>
+          ${barsHtml}
+        </div>
+        <div class="chart-col">
+          <div class="chart-wrap">
+            <canvas id="layerChart" width="220" height="220"></canvas>
+            <div class="chart-center-label">
+              <span class="chart-pct">${(d.final_score * 100).toFixed(1)}%</span>
+              <span class="chart-pct-sub">احتمال التزييف</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="result-meta">
+        <span class="meta-final ${d.final_score > 0.5 ? 'meta-fake' : 'meta-real'}">
+          النتيجة النهائية: ${(d.final_score * 100).toFixed(2)}%
+        </span>
+        <span>🧬 ${d.media_type === 'image' ? 'صورة' : 'فيديو'}</span>
+        <span>🔍 ثقة ${d.confidence} (${d.confidence_pct}%)</span>
+      </div>
+    </div>
+  `;
+
+  requestAnimationFrame(() => {
+    document.getElementById('result-card').style.animation = 'fadeSlideUp .4s ease';
+  });
+
+  const scores = layers.map(l => l.score);
+  const total  = scores.reduce((a, b) => a + b, 0) || 1;
+  const style  = getComputedStyle(document.documentElement);
+
+  new Chart(document.getElementById('layerChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: layers.map(l => l.name),
+      datasets: [{
+        data: scores.map(s => s / total),
+        backgroundColor: [
+          style.getPropertyValue('--c1').trim(),
+          style.getPropertyValue('--c2').trim(),
+          style.getPropertyValue('--c3').trim(),
+          style.getPropertyValue('--c4').trim(),
+          style.getPropertyValue('--c5').trim(),
+        ],
+        borderColor: 'transparent',
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      cutout: '68%',
+      animation: { duration: 900, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) =>
+              ` ${ctx.label}: ${(scores[ctx.dataIndex] * 100).toFixed(1)}% إشارة تزييف`
+          },
+          backgroundColor: '#0d0d0d',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#aaa',
+          bodyColor: '#e0e0e0',
+          padding: 10,
+        }
+      }
+    }
+  });
+}
+
+// ── Render VIDEO result ───────────────────────────────────────────────────────
+function renderVideoResult(d, filename) {
+  const ls  = d.layer_scores       || {};
+  const tmp = d.temporal           || {};
+  const vi  = d.video_info         || {};
+  const sf  = d.suspicious_frames  || [];
+
+  let verdictClass = 'uncertain';
+  if (d.final_score >= 0.60) verdictClass = 'fake';
+  else if (d.final_score <= 0.35) verdictClass = 'real';
+
+  const verdictAr = { fake: 'مزيّف', real: 'أصلي', uncertain: 'غير محدد' };
+  const pct = (v) => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const fmt = (v, dec=2) => v != null ? Number(v).toFixed(dec) : '—';
+
+  const videoLayers = [
+    { name: 'متوسط الإطارات',  score: ls.frame_aggregate ?? 0, color: 'var(--c1, #ff4040)' },
+    { name: 'النتيجة الزمنية', score: ls.temporal_score  ?? 0, color: 'var(--c3, #3b82f6)' },
+  ];
+
+  const layerBarsHtml = videoLayers.map(l => `
+    <div class="vr-layer-row">
+      <span class="vr-bar-pct">${pct(l.score)}</span>
+      <div class="vr-bar-track">
+        <div class="vr-bar-fill" style="width:${pct(l.score)};background:${l.color}"></div>
+      </div>
+      <span class="vr-layer-name">${l.name}</span>
+    </div>
+  `).join('');
+
+  const donutScores = videoLayers.map(l => l.score);
+  const donutTotal  = donutScores.reduce((a,b) => a+b, 0) || 1;
+
+  const temporalHtml = `
+    <div class="vr-temporal-grid">
+      <div class="vr-temp-item">
+        <div class="vr-temp-label">تباين النتائج</div>
+        <div class="vr-temp-value">${fmt(tmp.score_variance, 4)}</div>
+      </div>
+      <div class="vr-temp-item">
+        <div class="vr-temp-label">متوسط التدرج</div>
+        <div class="vr-temp-value">${fmt(tmp.mean_gradient, 4)}</div>
+      </div>
+      <div class="vr-temp-item">
+        <div class="vr-temp-label">نتيجة الاتساق</div>
+        <div class="vr-temp-value">${pct(tmp.consistency_score)}</div>
+      </div>
+      ${tmp.interpretation ? `
+      <div class="vr-temp-interp">💬 ${tmp.interpretation}</div>` : ''}
+    </div>
+  `;
+
+  const infoHtml = `
+    <div class="vr-info-grid">
+      <div class="vr-info-item">
+        <div class="vr-info-label">المدة</div>
+        <div class="vr-info-value">${vi.duration_sec != null ? vi.duration_sec.toFixed(1) + ' ث' : '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">معدل الإطارات</div>
+        <div class="vr-info-value">${vi.fps != null ? vi.fps.toFixed(1) + ' fps' : '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">الدقة</div>
+        <div class="vr-info-value">${vi.resolution || '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">الترميز</div>
+        <div class="vr-info-value">${vi.codec || '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">الإطارات المحللة</div>
+        <div class="vr-info-value">${vi.n_frames_analyzed ?? '—'}</div>
+      </div>
+      <div class="vr-info-item">
+        <div class="vr-info-label">وقت المعالجة</div>
+        <div class="vr-info-value">${vi.processing_time_s != null ? vi.processing_time_s.toFixed(2) + ' ث' : '—'}</div>
+      </div>
+    </div>
+  `;
+
+  let framesHtml;
+  if (sf.length === 0) {
+    framesHtml = '<p class="vr-no-frames">لم يتم اكتشاف إطارات مشبوهة.</p>';
+  } else {
+    const rows = sf.map(f => `
+      <tr class="${f.is_suspicious ? 'row-suspicious' : ''}">
+        <td>${f.timestamp != null ? f.timestamp.toFixed(3) + ' ث' : '—'}</td>
+        <td>${f.frame_score != null ? (f.frame_score * 100).toFixed(1) + '%' : '—'}</td>
+        <td>
+          ${f.is_suspicious ? '<span class="frame-badge badge-sus">مشبوه</span>' : '—'}
+          ${f.is_keyframe   ? '<span class="frame-badge badge-key">إطار رئيسي</span>' : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    framesHtml = `
+      <table class="vr-frames-table">
+        <thead>
+          <tr>
+            <th>الطابع الزمني</th>
+            <th>نتيجة التزييف</th>
+            <th>العلامات</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+  }
+
+  const aiBadgeHtml = d.is_ai
+    ? `<span class="vr-badge badge-ai">🤖 مولّد بالذكاء الاصطناعي</span>`
+    : `<span class="vr-badge badge-real-tag">✅ يبدو أصلياً</span>`;
+
+  document.getElementById('result-panel').innerHTML = `
+    <div class="video-result-card result-${verdictClass} ar-page" id="result-card">
+
+      <div class="vr-header">
+        <div class="vr-verdict verdict-${verdictClass}">${verdictAr[verdictClass]}</div>
+        <div>
+          <div class="vr-file-label">الملف</div>
+          <div class="vr-filename">${filename}</div>
+        </div>
+      </div>
+
+      <div class="vr-score-hero">
+        <div class="vr-score-meta">
+          ${aiBadgeHtml}
+          <span class="vr-badge badge-confidence">
+            🔍 ثقة ${d.confidence || '—'} &nbsp;·&nbsp; ${d.confidence_pct ?? '—'}%
+          </span>
+          <span class="vr-badge badge-id">
+            🆔 ${d.analysis_id || '—'}
+          </span>
+        </div>
+        <div class="vr-donut-wrap">
+          <canvas id="videoDonut" width="140" height="140"></canvas>
+          <div class="vr-donut-center">
+            <span class="vr-donut-pct">${(d.final_score * 100).toFixed(1)}%</span>
+            <span class="vr-donut-sub">احتمال التزييف</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="vr-section">
+        <div class="vr-section-title">نتائج الطبقات</div>
+        ${layerBarsHtml}
+      </div>
+
+      <div class="vr-section">
+        <div class="vr-section-title">التحليل الزمني</div>
+        ${temporalHtml}
+      </div>
+
+      <div class="vr-section">
+        <div class="vr-section-title">معلومات الفيديو</div>
+        ${infoHtml}
+      </div>
+
+      <div class="vr-section">
+        <div class="vr-section-title">الإطارات المشبوهة (${sf.length})</div>
+        ${framesHtml}
+      </div>
+
+    </div>
+  `;
+
+  const style = getComputedStyle(document.documentElement);
+  new Chart(document.getElementById('videoDonut').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: videoLayers.map(l => l.name),
+      datasets: [{
+        data: donutScores.map(s => s / donutTotal),
+        backgroundColor: [
+          style.getPropertyValue('--c1').trim() || '#ff4040',
+          style.getPropertyValue('--c3').trim() || '#3b82f6',
+        ],
+        borderColor: 'transparent',
+        hoverOffset: 6,
+      }]
+    },
+    options: {
+      cutout: '68%',
+      animation: { duration: 900, easing: 'easeInOutQuart' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) =>
+              ` ${ctx.label}: ${(donutScores[ctx.dataIndex] * 100).toFixed(1)}%`
+          },
+          backgroundColor: '#0d0d0d',
+          borderColor: '#333',
+          borderWidth: 1,
+          titleColor: '#aaa',
+          bodyColor: '#e0e0e0',
+          padding: 10,
+        }
+      }
+    }
+  });
+}
+</script>
+
+{% endblock %}
